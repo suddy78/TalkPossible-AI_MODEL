@@ -152,4 +152,4 @@ def speed_model(file_names):
 
     print("발화 속도(분당 어절 수): ", words_per_min)
 
-    return words_per_min
+    return str(words_per_min)

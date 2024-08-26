@@ -66,11 +66,10 @@ def stutter_model(audio_name):
         }
         endpoint = f"https://koreacentral.api.cognitive.microsoft.com/speechtotext/v3.1/transcriptions"
 
-
         response = requests.post(endpoint, headers=headers, json=data)
-        return response
+        transcription_id = response.json()["self"].split("/")[-1]
 
-    transcription_id = get_transcription_id(file_URL).json()["self"].split("/")[-1]
+        return transcription_id
 
     def get_transcription_status(transcription_id):
         headers = {
