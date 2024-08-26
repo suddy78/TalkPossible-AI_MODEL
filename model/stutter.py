@@ -1,8 +1,9 @@
-# import azure.cognitiveservices.speech as speechsdk
+import azure.cognitiveservices.speech as speechsdk
 from azure.storage.blob import BlobServiceClient
 import os
 import requests
 import librosa
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa.display
@@ -40,7 +41,7 @@ def stutter_model(audio_name):
 
     # blob storage의 url
     storage_URL = "https://storage4stt0717.blob.core.windows.net/blob1"
-    file_URL = f"{storage_URL}/{audio_name}.wav"
+    file_URL = [f"{storage_URL}/{audio_name}.wav"]
 
     def get_transcription_id(file_path):
 
@@ -51,7 +52,7 @@ def stutter_model(audio_name):
         data = {
             "contentUrls": file_path,
             "locale": "ko-KR",
-            "displayName": "wav to result plzzzz",
+            "displayName": "wav to result",
             "destinationContainerUrl" : storage_URL,
             "properties": {
                 "wordLevelTimestampsEnabled": True,
@@ -79,29 +80,38 @@ def stutter_model(audio_name):
         current_status = requests.get(endpoint, headers=headers)
         return current_status
 
-    def get_transcription_result(transcription_id):
-        status = get_transcription_status(transcription_id)
+    def get_transcription_result(status):
+        results_url = status["links"]['files']
+        headers = {
+            'Ocp-Apim-Subscription-Key': subscription_key,
+        }
 
-        if status.json()["status"] == "Succeeded":
+        script = requests.get(results_url, headers=headers)
 
-            results_url = status.json()["links"]['files']
-            headers = {
-                'Ocp-Apim-Subscription-Key': subscription_key,
-            }
+        # kind가 Transcription인 것의 contentUrl로 get 요청을 보내면 됨. (header 필요 x)
+        Transcription_url = script.json()["values"][0]["links"]["contentUrl"]
+        transcription_data_response = requests.get(Transcription_url)
+        transcription_data = transcription_data_response.json()
+        return transcription_data
 
-            script = requests.get(results_url, headers=headers)
+    t_id = get_transcription_id(file_URL)
 
-            # kind가 Transcription인 것의 contentUrl로 get 요청을 보내면 됨. (header 필요 x)
-            Transcription_url = script.json()["values"][0]["links"]["contentUrl"]
-            transcription_data = requests.get(Transcription_url)
-            return transcription_data
-        else:
-            return status
+    # status
+    while True:
+        t_status = get_transcription_status(t_id).json()
 
-    transcription_data = get_transcription_result(transcription_id)
+        if t_status['status'] == 'Succeeded':
+            break
+        elif t_status['status'] == 'Failed':
+            raise Exception("Transcription failed.")
+
+        time.sleep(5)  # 5초 대기 후 다시 상태 확인
+
+    # result
+    transcription_data = get_transcription_result(t_status)
 
     def get_offset_duration(transcription_data):
-        words_raw = transcription_data.json()["recognizedPhrases"][0]["nBest"][0]["words"]
+        words_raw = transcription_data["recognizedPhrases"][0]["nBest"][0]["words"]
         words_list = []
 
         for word in words_raw:
@@ -154,6 +164,9 @@ def stutter_model(audio_name):
         audio_data = BytesIO(response.content)
         audio = AudioSegment.from_file(audio_data, format="wav")
 
+        if not words_without_punctuation:
+            raise ValueError("words_without_punctuation is empty. Ensure the transcription data contains valid timestamps.")
+
         sentence_start_time = float(words_without_punctuation[0]["start_time"])  # 첫 문장의 시작 시간 설정
 
         # 어절 단위 오디오 커팅 및 문장 구분
@@ -168,16 +181,24 @@ def stutter_model(audio_name):
 
             # 구두점이 포함된 어절을 만나면 문장을 끝냄
             if any(punct in word for punct in [".", "!", "?"]):
-                sentence_end_time = float(words_without_punctuation[idx]["end_time"]) * 1000
-                sentence_audio = audio[int(sentence_start_time * 1000):int(sentence_end_time)]
+                # 확인: idx가 범위 내에 있는지 확인
+                if idx < len(words_without_punctuation):
+                    sentence_end_time = float(words_without_punctuation[idx]["end_time"]) * 1000
+                else:
+                    sentence_end_time = int(audio.duration_seconds * 1000)  # 오디오의 끝으로 설정
+
+                # 다음 문장의 시작 시간 설정, 다음 문장이 없으면 현재 문장의 끝으로 설정
+                if idx + 1 < len(words_without_punctuation):
+                    sentence_start_time = float(words_without_punctuation[idx + 1]["start_time"]) * 1000
+                else:
+                    sentence_start_time = sentence_end_time  # 다음 문장이 없으면 현재 문장의 끝으로 설정
+
+                sentence_audio = audio[int(sentence_start_time):int(sentence_end_time)]
 
                 # 문장 단위로 자른 오디오를 메모리에 저장
                 sentence_buffer = BytesIO()
                 sentence_audio.export(sentence_buffer, format="wav")
                 sentence_buffer.seek(0)
-
-                # 다음 문장의 시작 시간 설정
-                sentence_start_time = float(words_without_punctuation[idx + 1]["start_time"]) if idx + 1 < len(words_without_punctuation) else None
 
                 # 문장을 리스트로 저장
                 sentences.append((sentence_buffer, f"sentence_{idx + 1}.wav"))
@@ -272,7 +293,8 @@ def stutter_model(audio_name):
             return {"status_code": 204}
 
     # Blob Storage의 퍼블릭 URL
-    audio_url = file_URL
+    audio_url = file_URL[0]
+
 
     # 시작점
     words_with_punctuation = transcription_data["combinedRecognizedPhrases"][0]["display"].split()
