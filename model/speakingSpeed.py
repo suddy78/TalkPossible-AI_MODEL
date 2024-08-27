@@ -119,7 +119,7 @@ def speed_model(file_names):
 
     # 음성 파일 총경로 생성
     for name in file_names:
-        full_file_names.append(f"{storage_URL}/{name}.wav")
+        full_file_names.append(f"{storage_URL}/{name}")
 
     # id
     t_id = get_transcription_id(full_file_names)
