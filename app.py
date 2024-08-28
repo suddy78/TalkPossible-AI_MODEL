@@ -7,28 +7,26 @@ app = Flask(__name__)
 def success():
     return '접속 성공!'
 
-@app.route('/speed_model') #, methods=['POST']
+@app.route('/speed_model', methods=['POST'])
 def speed_model_endpoint():
-    #data = request.get_json()
+    data = request.get_json()
 
-    #if 'file_names' not in data:
-        #return jsonify({"error": "file_names 파라미터가 필요합니다."}), 400
+    if 'file_names' not in data:
+        return jsonify({"error": "file_names 파라미터가 필요합니다."}), 400
 
-    #file_names = data['file_names']
-    file_names = ['mergeNine.wav','mergeNine.wav']
+    file_names = data['file_names']
 
     predict = speed_model(file_names)
     return jsonify(predict)
 
-@app.route('/stutter_model') # , methods=['POST']
+@app.route('/stutter_model', methods=['POST'])
 def stutter_model_endpoint():
-    #data = request.get_json()
+    data = request.get_json()
 
-    #if 'audio_name' not in data:
-        #return jsonify({"error": "audio_name 파라미터가 필요합니다."}), 400
+    if 'audio_name' not in data:
+        return jsonify({"error": "audio_name 파라미터가 필요합니다."}), 400
 
-    #audio_name = data['audio_name']
-    audio_name = '2024-08-26T19_26_41_317Z.wav'
+    audio_name = data['audio_name']
     # stutter_model 함수 호출
     result = stutter_model(audio_name)
 
