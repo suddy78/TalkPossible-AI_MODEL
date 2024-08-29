@@ -280,7 +280,10 @@ def stutter_model(audio_name):
 
     def upload_to_s3(img_buffer, image_name):
         img_buffer.seek(0)
-        s3_client.upload_fileobj(img_buffer, s3_bucket_name, image_name)
+        s3_client.upload_fileobj(img_buffer, s3_bucket_name, image_name,
+                                 ExtraArgs={
+                                     "ContentType": "image/png"
+                                 })
         image_url = f"https://{s3_bucket_name}.s3.{s3_region}.amazonaws.com/{image_name}"
         return image_url
 
