@@ -218,7 +218,7 @@ def stutter_model(audio_name):
                                 sentence_buffer = BytesIO()
                                 sentence_audio.export(sentence_buffer, format="wav")
                                 sentence_buffer.seek(0)
-                                sentences.append((sentence_buffer, f"{audio_name[:-4]}_sentence_{i + 1}.wav"))
+                                sentences.append((sentence_buffer, f"{audio_name[:-4]}_sentence_{i + 1}.wav", start_idx, end_idx))
                                 print(f"문장 {i + 1} 메모리에 저장 완료: {start_idx}부터 {end_idx}까지")
                             else:
                                 print(f"문장 {i + 1} 오디오 잘라내기 실패: {start_idx}부터 {end_idx}까지")
@@ -291,7 +291,8 @@ def stutter_model(audio_name):
         matched_timestamps = match_punctuation_and_timestamps(words_with_punctuation, words_without_punctuation)
         punctuation_indices = get_punctuation_indices(words_with_punctuation)
         model = load_model()
-        detected_words = []
+        detected_sentences = []
+        # detected_words = []
         detected_word_indices = []
         audio_urls = []
         image_urls = []
@@ -306,7 +307,7 @@ def stutter_model(audio_name):
             if predict_image(model, img_buffer):
                 detected_word_idx = int(word_name.split("_")[1])
                 detected_word = words_without_punctuation[detected_word_idx]['word']
-                detected_words.append(detected_word)
+                #detected_words.append(detected_word)
 
                 # 감지된 단어의 인덱스 저장
                 detected_word_indices.append(detected_word_idx)
@@ -320,30 +321,39 @@ def stutter_model(audio_name):
                 image_urls.append(image_url)
 
         # 감지된 단어가 포함된 문장을 자르고 업로드
-        if detected_words:
+        if detected_word_indices:
             sentence_indices = find_sentence_indices(detected_word_indices, punctuation_indices)
+
+            # cut_audio_by_sentence 함수에서 문장 오디오와 인덱스를 가져옴
             sentences = cut_audio_by_sentence(audio_url, words_without_punctuation, sentence_indices, detected_word_indices)
+
             if not sentences:
                 print("저장된 문장이 없습니다. 오디오 업로드 중단.")
             else:
-                for i, (sentence_audio, sentence_name) in enumerate(sentences):
+                for i, (sentence_audio, sentence_name, start_idx, end_idx) in enumerate(sentences):
                     if sentence_audio:  # sentence_audio가 유효한지 확인
                         sentence_url = upload_to_blob(sentence_audio, sentence_name)
                         if sentence_url:
                             audio_urls.append(sentence_url)
                             print(f"오디오 업로드 성공: {sentence_name}")
+
+                            # 어절 인덱스를 기반으로 문장 텍스트 구성하기
+                            detected_sentence = " ".join(
+                                words_with_punctuation[start_idx:end_idx + 1]
+                            )
+                            detected_sentences.append(detected_sentence)
                         else:
                             print(f"오디오 업로드 실패: {sentence_name}")
                     else:
                         print(f"오디오 잘라내기 실패: {sentence_name}")
 
-        if detected_words:
+        if detected_sentences:
             return {
                 "status_code": 200,
                 "data": {
                     "audio_url": audio_urls,
                     "image_url": image_urls,
-                    "words": detected_words
+                    "words": detected_sentences
                 }
             }
         else:
