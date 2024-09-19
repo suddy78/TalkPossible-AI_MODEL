@@ -12,7 +12,7 @@ def speed_model_endpoint():
     data = request.get_json()
 
     if 'file_names' not in data:
-        return jsonify({"error": "file_names 파라미터가 필요합니다."}), 400
+        return
 
     file_names = data['file_names']
 
@@ -24,7 +24,7 @@ def stutter_model_endpoint():
     data = request.get_json()
 
     if 'audio_name' not in data:
-        return jsonify({"error": "audio_name 파라미터가 필요합니다."}), 400
+        return
 
     audio_name = data['audio_name']
     # stutter_model 함수 호출
