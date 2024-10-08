@@ -1,16 +1,10 @@
-import azure.cognitiveservices.speech as speechsdk
-import os
 import requests
 import time
-from pydub import AudioSegment
-import re
 from io import BytesIO
-import glob
 import wave
 import contextlib
 
 def speed_model(file_names):
-
     subscription_key = "9aebda1f74c84a2cba78b07be0257969"
 
     # blob storage의 url

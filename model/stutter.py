@@ -4,17 +4,15 @@ import librosa
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')
 import librosa.display
 import librosa.feature
 from io import BytesIO
 import boto3
-import tensorflow as tf
-from keras.models import model_from_json
-from keras.preprocessing import image
 from pydub import AudioSegment
 import re
+import joblib
+import matplotlib
+matplotlib.use('Agg')
 
 def stutter_model(audio_name):
     # Azure Blob 설정
@@ -113,7 +111,7 @@ def stutter_model(audio_name):
             })
         return words_list
 
-    def cut_audio_by_words(audio_url,words_without_punctuation):
+    def cut_audio_by_words(audio_url, words_without_punctuation):
         response = requests.get(audio_url)
         audio_data = BytesIO(response.content)
         audio = AudioSegment.from_file(audio_data, format="wav")
@@ -129,148 +127,61 @@ def stutter_model(audio_name):
             word_audio.export(word_buffer, format="wav")
             word_buffer.seek(0)
 
-            words.append((word_buffer, f"word_{idx}_{word_info['word']}.wav"))
+            words.append((word_buffer, f"{audio_name[:-4]}_word_{idx}_{word_info['word']}.wav"))
 
         return words
 
-    def match_punctuation_and_timestamps(words_with_punctuation, words_without_punctuation):
-        matched_timestamps = []
-        word_idx = 0
-        for idx, word_with_punc in enumerate(words_with_punctuation):
-            cleaned_word = word_with_punc.rstrip('.,!?')
-            while word_idx < len(words_without_punctuation):
-                word_without_punc = words_without_punctuation[word_idx]["word"]
-                if cleaned_word == word_without_punc:
-                    matched_timestamps.append({
-                        "word": word_with_punc,
-                        "start_time": words_without_punctuation[word_idx]["start_time"],
-                        "end_time": words_without_punctuation[word_idx]["end_time"]
-                    })
-                    word_idx += 1
-                    break
-                else:
-                    matched_timestamps.append({
-                        "word": word_with_punc,
-                        "start_time": matched_timestamps[-1]["end_time"] if matched_timestamps else "0.000",
-                        "end_time": matched_timestamps[-1]["end_time"] if matched_timestamps else "0.000"
-                    })
-                    break
-        return matched_timestamps
-
-    # 구두점이 포함된 인덱스 번호를 찾는 함수 = 문장 끝을 저장하는 리스트 함수
-    def get_punctuation_indices(words):
-        # 구두점을 포함한 인덱스를 저장할 리스트
-        punctuation_indices = []
-
-        # 구두점 패턴
-        punctuation_pattern = r'[.,!?;]'
-
-        # 리스트를 순회하며 구두점 포함 여부 확인
-        for i, word in enumerate(words):
-            if re.search(punctuation_pattern, word):
-                punctuation_indices.append(i)
-
-        return punctuation_indices
-
-    def find_sentence_indices(detected_word_indices, punctuation_indices):
-        sentence_indices = []
-        sentence_start_idx = 0
-
-        for punct_idx in punctuation_indices:
-            sentence_end_idx = punct_idx
-            sentence_indices.append((sentence_start_idx, sentence_end_idx))
-            sentence_start_idx = sentence_end_idx + 1
-
-        if sentence_start_idx < len(detected_word_indices):
-            sentence_indices.append((sentence_start_idx, len(detected_word_indices) - 1))
-
-        return sentence_indices
-
-    def cut_audio_by_sentence(audio_url, words_without_punctuation, sentence_indices, detected_word_indices):
-        response = requests.get(audio_url)
-        audio_data = BytesIO(response.content)
-        audio = AudioSegment.from_file(audio_data, format="wav")
-
-        sentences = []
-
-        # `Detected word indices`를 포함하는 문장 인덱스 추출
-        for idx in detected_word_indices:
-            for i, (start_idx, end_idx) in enumerate(sentence_indices):
-                if start_idx <= idx <= end_idx:
-                    try:
-                        if start_idx >= len(words_without_punctuation) or end_idx >= len(words_without_punctuation):
-                            continue
-
-                        sentence_start_time = float(words_without_punctuation[start_idx]["start_time"]) * 1000
-
-                        if i + 1 < len(sentence_indices):
-                            next_start_idx = sentence_indices[i + 1][0]
-                            if next_start_idx < len(words_without_punctuation):
-                                sentence_end_time = float(words_without_punctuation[next_start_idx]["start_time"]) * 1000
-                            else:
-                                sentence_end_time = float(words_without_punctuation[end_idx]["end_time"]) * 1000
-                        else:
-                            sentence_end_time = float(words_without_punctuation[end_idx]["end_time"]) * 1000
-
-                        if sentence_start_time < sentence_end_time:
-                            sentence_audio = audio[int(sentence_start_time):int(sentence_end_time)]
-                            if len(sentence_audio) > 0:
-                                sentence_buffer = BytesIO()
-                                sentence_audio.export(sentence_buffer, format="wav")
-                                sentence_buffer.seek(0)
-                                sentences.append((sentence_buffer, f"{audio_name[:-4]}_sentence_{i + 1}.wav", start_idx, end_idx))
-                                print(f"문장 {i + 1} 메모리에 저장 완료: {start_idx}부터 {end_idx}까지")
-                            else:
-                                print(f"문장 {i + 1} 오디오 잘라내기 실패: {start_idx}부터 {end_idx}까지")
-                        else:
-                            print(f"문장 {i + 1} 오디오 잘라내기 실패: 시작 시간이 끝 시간보다 큽니다.")
-                            continue
-
-                    except ValueError as e:
-                        print(f"문장 인덱스 처리 오류: {e}")
-                        continue
-
-        if not sentences:
-            print("저장된 문장이 없습니다. 오디오 업로드 중단.")
-
-        return sentences
+    # 모델 로드 (더듬음 판별용 모델과 종류 분류용 모델)
+    stutter_model = joblib.load('model/stutter_model/stutter_model.pkl')
+    xgb_model = joblib.load('model/stutter_model/xgb_bi_0920.pkl')
 
 
-    def create_mfcc_image(audio_buffer):
+    # MFCC 특성 추출 함수
+    def get_scaled_mfcc(audio_buffer):
+        audio_buffer.seek(0)
+        y, sr = librosa.load(audio_buffer, sr=None)
+        if len(y) == 0:
+            return None
+        y_mfcc = np.mean(librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20).T, axis=0)
+        return y_mfcc
+
+    # 말더듬 종류 분류를 위한 MFCC 추출 함수
+    def extract_mfcc_from_audio_buffer(audio_buffer):
         audio_buffer.seek(0)
         audio, sample_rate = librosa.load(audio_buffer, sr=None)
-        mfccs = librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=10, n_fft=400, hop_length=160)
-        img_buffer = BytesIO()
+        mfccs = np.mean(librosa.feature.mfcc(y=audio, sr=sample_rate, n_mfcc=20).T, axis=0)
+        return mfccs
+
+    # 파장 이미지 생성 함수
+    def create_waveform_image(wav, sr):
         plt.figure(figsize=(10, 4))
-        librosa.display.specshow(mfccs, sr=sample_rate, hop_length=160)
+        plt.plot(wav)
         plt.axis('off')
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        img_buffer = BytesIO()
         plt.savefig(img_buffer, format='png', bbox_inches='tight', pad_inches=0)
         plt.close()
         img_buffer.seek(0)
         return img_buffer
 
-    def load_model():
-        with open('model/stutter_model/model_structure.json', 'r') as json_file:
-            loaded_model_json = json_file.read()
-        loaded_model = model_from_json(loaded_model_json, custom_objects={"Sequential": tf.keras.models.Sequential})
-        loaded_model.load_weights("model/stutter_model/model_weights.h5")
-        return loaded_model
+    # 문장 저장
+    EXTEND_DURATION_MS = 200
 
-    def predict_image(model, img_buffer):
-        img_buffer.seek(0)
-        img = image.load_img(img_buffer, target_size=(64, 64))
-        img_array = image.img_to_array(img)
-        img_array = np.expand_dims(img_array, axis=0)
-        predictions = model.predict(img_array)
-        return predictions[0, 0] > 0.98
+    def upload_to_blob(blob_name, original_start_time, original_end_time, full_audio):
+        # 기존 오디오 파일에서 앞뒤로 0.5초씩 추가하여 잘라내기
+        start_time_ms = max(0, original_start_time * 1000 - EXTEND_DURATION_MS)  # 시작 시간이 0보다 작아지지 않게 함
+        end_time_ms = min(len(full_audio), original_end_time * 1000 + EXTEND_DURATION_MS)  # 끝 시간이 파일 길이를 넘지 않게 함
 
+        extended_audio = full_audio[start_time_ms:end_time_ms]
 
-    def upload_to_blob(data_buffer, blob_name):
+        # 확장된 오디오를 버퍼에 저장
+        extended_buffer = BytesIO()
+        extended_audio.export(extended_buffer, format="wav")
+        extended_buffer.seek(0)
+
         blob_client = blob_service_client.get_blob_client(container="blob2", blob=blob_name)
         try:
             print(f"Uploading {blob_name} to Azure Blob Storage...")
-            blob_client.upload_blob(data_buffer, overwrite=True)
+            blob_client.upload_blob(extended_buffer, overwrite=True)
             blob_url = f"https://storage4stt0717.blob.core.windows.net/blob2/{blob_name}"
             print(f"Successfully uploaded {blob_name}. URL: {blob_url}")
             return blob_url
@@ -278,92 +189,79 @@ def stutter_model(audio_name):
             print(f"Failed to upload {blob_name} to Azure Blob Storage: {str(e)}")
             return None
 
-    def upload_to_s3(img_buffer, image_name):
+    # 파장 이미지 AWS S3에 업로드 함수
+    def upload_waveform_to_s3(img_buffer, image_name):
         img_buffer.seek(0)
-        s3_client.upload_fileobj(img_buffer, s3_bucket_name, image_name,
-                                 ExtraArgs={
-                                     "ContentType": "image/png"
-                                 })
+        s3_client.upload_fileobj(img_buffer, s3_bucket_name, image_name, ExtraArgs={"ContentType": "image/png"})
         image_url = f"https://{s3_bucket_name}.s3.{s3_region}.amazonaws.com/{image_name}"
         return image_url
 
-    def process_audio_workflow(audio_url, words_with_punctuation, words_without_punctuation, transcription_data):
-        matched_timestamps = match_punctuation_and_timestamps(words_with_punctuation, words_without_punctuation)
-        punctuation_indices = get_punctuation_indices(words_with_punctuation)
-        model = load_model()
-        detected_sentences = []
-        # detected_words = []
-        detected_word_indices = []
+    # 주요 로직 - 어절 분석 및 저장
+    def process_stutter_detection(audio_url, words_without_punctuation, audio_name):
+        detected_words = []
         audio_urls = []
         image_urls = []
+        stutter_types = []
 
-        # 어절별 오디오 자르고 MFCC 이미지 생성
+        response = requests.get(audio_url)
+        audio_data = BytesIO(response.content)
+        full_audio = AudioSegment.from_file(audio_data, format="wav")
+
+        # 어절별로 더듬음 감지
         word_audio_data = cut_audio_by_words(audio_url, words_without_punctuation)
-
-        # 각 어절에 대해 더듬이 감지
         for word_buffer, word_name in word_audio_data:
-            img_buffer = create_mfcc_image(word_buffer)
+            print(f"Processing word: {word_name}")  # word_name을 출력해서 형식 확인
+            # 더듬음 모델에 넣을 MFCC 추출
+            mfcc_features = get_scaled_mfcc(word_buffer)
+            if mfcc_features is not None:
+                stutter_prediction = stutter_model.predict([mfcc_features])
 
-            if predict_image(model, img_buffer):
-                detected_word_idx = int(word_name.split("_")[1])
-                detected_word = words_without_punctuation[detected_word_idx]['word']
-                #detected_words.append(detected_word)
+                if stutter_prediction == 1:  # 더듬음인 경우
+                    detected_word_idx = int(word_name.split("_")[-2])
+                    word_info = words_without_punctuation[detected_word_idx]
+                    detected_word = words_without_punctuation[detected_word_idx]['word']
+                    detected_words.append(detected_word)
 
-                # 감지된 단어의 인덱스 저장
-                detected_word_indices.append(detected_word_idx)
+                    # 더듬음 종류 분류 모델 실행
+                    mfcc_features_for_type = extract_mfcc_from_audio_buffer(word_buffer)
+                    stutter_type_prediction = xgb_model.predict(mfcc_features_for_type.reshape(1, -1))
 
-                # 디버깅: 감지된 단어 출력
-                print(f"감지된 단어: {detected_word} (인덱스: {detected_word_idx})")
+                    # 더듬음 종류 출력 및 결과 저장
+                    stutter_type = "Sound Repetition" if stutter_type_prediction == 0 else "Prolongation"
+                    stutter_types.append(stutter_type)
 
-                # MFCC 이미지 업로드
-                image_name = f"{audio_name[:-4]}_{word_name.split('.')[0]}_mfcc.png"
-                image_url = upload_to_s3(img_buffer, image_name)
-                image_urls.append(image_url)
+                    # 파장 이미지 생성 및 S3 업로드
+                    word_buffer.seek(0)
+                    wav, sr = librosa.load(word_buffer, sr=None)
+                    waveform_image = create_waveform_image(wav, sr)
+                    image_name = f"{audio_name[:-4]}_{word_name.split('.')[0]}_waveform.png"
+                    image_url = upload_waveform_to_s3(waveform_image, image_name)
+                    image_urls.append(image_url)
 
-        # 감지된 단어가 포함된 문장을 자르고 업로드
-        if detected_word_indices:
-            sentence_indices = find_sentence_indices(detected_word_indices, punctuation_indices)
+                    # 감지된 어절의 오디오 저장
+                    word_url = upload_to_blob(word_name, float(word_info["start_time"]),
+                                              float(word_info["end_time"]), full_audio)
+                    audio_urls.append(word_url)
 
-            # cut_audio_by_sentence 함수에서 문장 오디오와 인덱스를 가져옴
-            sentences = cut_audio_by_sentence(audio_url, words_without_punctuation, sentence_indices, detected_word_indices)
 
-            if not sentences:
-                print("저장된 문장이 없습니다. 오디오 업로드 중단.")
-            else:
-                for i, (sentence_audio, sentence_name, start_idx, end_idx) in enumerate(sentences):
-                    if sentence_audio:  # sentence_audio가 유효한지 확인
-                        sentence_url = upload_to_blob(sentence_audio, sentence_name)
-                        if sentence_url:
-                            audio_urls.append(sentence_url)
-                            print(f"오디오 업로드 성공: {sentence_name}")
-
-                            # 어절 인덱스를 기반으로 문장 텍스트 구성하기
-                            detected_sentence = " ".join(
-                                words_with_punctuation[start_idx:end_idx + 1]
-                            )
-                            detected_sentences.append(detected_sentence)
-                        else:
-                            print(f"오디오 업로드 실패: {sentence_name}")
-                    else:
-                        print(f"오디오 잘라내기 실패: {sentence_name}")
-
-        if detected_sentences:
+        # 최종 결과 반환
+        if detected_words:
             return {
                 "status_code": 200,
                 "data": {
                     "audio_url": audio_urls,
                     "image_url": image_urls,
-                    "words": detected_sentences
+                    "words": detected_words,
+                    "stutter_type": stutter_types
                 }
             }
         else:
             return {"status_code": 204}
 
+
     # Blob Storage의 퍼블릭 URL
     audio_url = f"{storage_URL}/{audio_name}"
 
-    # 워크플로우 실행
-    words_with_punctuation = transcription_data["combinedRecognizedPhrases"][0]["display"].split()
     words_without_punctuation = get_offset_duration(transcription_data)
 
-    return process_audio_workflow(audio_url, words_with_punctuation, words_without_punctuation, transcription_data)
+    return process_stutter_detection(audio_url, words_without_punctuation, audio_name)

@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, json
 from model.speakingSpeed import speed_model
 from model.stutter import stutter_model
+from model.chu import chu_model
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -40,3 +42,19 @@ def stutter_model_endpoint():
         return response
     else:
         return '', 204  # 말더듬이 감지되지 않으면 204 No Content 반환
+
+@app.route('/chu_model', methods=['POST'])
+def chu_model_endpoint():
+    data = request.get_json()
+
+    if 'audio_name' not in data:
+        return
+
+    audio_name = data['audio_name']
+    # chu_model 함수 호출
+    result = chu_model(audio_name)
+
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
