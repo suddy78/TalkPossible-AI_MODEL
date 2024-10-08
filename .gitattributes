@@ -1,0 +1,7 @@
+확장자 filter=lfs diff=lfs merge=lfs -text
+*.dll filter=lfs diff=lfs merge=lfs -text
+\# filter=lfs diff=lfs merge=lfs -text
+또는 filter=lfs diff=lfs merge=lfs -text
+필요한 filter=lfs diff=lfs merge=lfs -text
+다른 filter=lfs diff=lfs merge=lfs -text
+파일 filter=lfs diff=lfs merge=lfs -text
