@@ -23,12 +23,13 @@ def speed_model_endpoint():
 
 @app.route('/stutter_model', methods=['POST'])
 def stutter_model_endpoint():
-    data = request.get_json()
+    #data = request.get_json()
 
-    if 'audio_name' not in data:
-        return
+    #if 'audio_name' not in data:
+        #return
 
-    audio_name = data['audio_name']
+    #audio_name = data['audio_name']
+    audio_name = '2024-09-01T06_31_51_465Z.wav'
     # stutter_model 함수 호출
     result = stutter_model(audio_name)
 
@@ -45,12 +46,13 @@ def stutter_model_endpoint():
 
 @app.route('/chu_model', methods=['POST'])
 def chu_model_endpoint():
-    data = request.get_json()
+    #data = request.get_json()
 
-    if 'audio_name' not in data:
-        return
+    #if 'audio_name' not in data:
+        #return
 
-    audio_name = data['audio_name']
+    #audio_name = data['audio_name']
+    audio_name = 'chu_test_audio.wav'
     # chu_model 함수 호출
     result = chu_model(audio_name)
 

@@ -3,7 +3,6 @@ import numpy as np
 import librosa
 import sklearn
 import sklearn.preprocessing
-#from tensorflow.python.keras.models import model_from_json
 from tensorflow import keras
 import requests
 import time
@@ -22,6 +21,7 @@ def chu_model(audio_name):
 
     # blob storage url
     storage_URL = "https://storage4stt0717.blob.core.windows.net/blob1"
+    file_URL = f"{storage_URL}/{audio_name}"
 
     def get_transcription_id(file_path):
         headers = {
@@ -164,7 +164,7 @@ def chu_model(audio_name):
 
     f_chu_cnt = 0
 
-    f_id = get_transcription_id([audio_name]) # 여기서는 리스트로 줘야해서 []해준게 맞음
+    f_id = get_transcription_id([file_URL]) # 여기서는 리스트로 줘야해서 []해준게 맞음
     f_status = get_transcription_status(f_id).json()
 
     while f_status['status'] != 'Succeeded':
@@ -175,7 +175,7 @@ def chu_model(audio_name):
 
     words_stack_list = get_offset_duration(f_transcription_words_list)
 
-    cut_audio_list = cut_audio(audio_name, words_stack_list)
+    cut_audio_list = cut_audio(file_URL, words_stack_list)
 
     for idx, audio in enumerate(cut_audio_list):
         check_in_model_result = check_in_model(audio)
