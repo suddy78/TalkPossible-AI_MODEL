@@ -132,7 +132,7 @@ def stutter_model(audio_name):
         return words
 
     # 모델 로드 (더듬음 판별용 모델과 종류 분류용 모델)
-    stutter_model = joblib.load('model/stutter_model/stutter_model.pkl')
+    stutter_model = joblib.load('model/stutter_model/stutter_model_1.pkl')
     xgb_model = joblib.load('model/stutter_model/xgb_bi_0920.pkl')
 
 
@@ -210,11 +210,16 @@ def stutter_model(audio_name):
         # 어절별로 더듬음 감지
         word_audio_data = cut_audio_by_words(audio_url, words_without_punctuation)
         for word_buffer, word_name in word_audio_data:
-            print(f"Processing word: {word_name}")  # word_name을 출력해서 형식 확인
             # 더듬음 모델에 넣을 MFCC 추출
             mfcc_features = get_scaled_mfcc(word_buffer)
             if mfcc_features is not None:
-                stutter_prediction = stutter_model.predict([mfcc_features])
+                stutter_probabilities = stutter_model.predict_proba([mfcc_features])
+
+                # 클래스 1(더듬음) 확률이 일정값 이상일 때 더듬음으로 예측
+                if stutter_probabilities[0][1] >= 0.9:  # 클래스 1에 대한 확률 확인
+                    stutter_prediction = 1  # 더듬음으로 분류
+                else:
+                    stutter_prediction = 0  # 정상 발화로 분류
 
                 if stutter_prediction == 1:  # 더듬음인 경우
                     detected_word_idx = int(word_name.split("_")[-2])
