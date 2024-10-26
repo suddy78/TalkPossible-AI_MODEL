@@ -11,6 +11,8 @@ import boto3
 from pydub import AudioSegment
 import re
 import joblib
+import xgboost as xgb
+from xgboost import XGBClassifier
 import matplotlib
 matplotlib.use('Agg')
 
@@ -133,7 +135,10 @@ def stutter_model(audio_name):
 
     # 모델 로드 (더듬음 판별용 모델과 종류 분류용 모델)
     stutter_model = joblib.load('model/stutter_model/stutter_model_1.pkl')
-    xgb_model = joblib.load('model/stutter_model/xgb_bi_1026.pkl')
+    xgb_model = xgb.XGBClassifier()
+
+    # 저장한 모델 불러오기
+    xgb_model.load_model('model/stutter_model/xgb_bi_1026.model')
 
 
     # MFCC 특성 추출 함수
