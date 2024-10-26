@@ -10,10 +10,10 @@ from pydub import AudioSegment
 
 def chu_model(audio_name):
     def load_model():
-        with open('model/chu_model/chu_model_structure.json', 'r') as json_file:
+        with open('model/chu_model/chu_model_structure0226.json', 'r') as json_file:
             loaded_model_json = json_file.read()
         loaded_model = keras.models.model_from_json(loaded_model_json)
-        loaded_model.load_weights("model/chu_model/chu_model_weights.weights.h5")
+        loaded_model.load_weights("model/chu_model/chu_model_weights0226.weights.h5")
         return loaded_model
 
     # azure key
@@ -186,4 +186,5 @@ def chu_model(audio_name):
             continue
 
     print(f"추임새 언급 횟수 : {f_chu_cnt}")
+    print(f"한자리 단어 갯수 : {len(cut_audio_list)}")
     return f_chu_cnt

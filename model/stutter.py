@@ -133,7 +133,7 @@ def stutter_model(audio_name):
 
     # 모델 로드 (더듬음 판별용 모델과 종류 분류용 모델)
     stutter_model = joblib.load('model/stutter_model/stutter_model_1.pkl')
-    xgb_model = joblib.load('model/stutter_model/xgb_bi_0920.pkl')
+    xgb_model = joblib.load('model/stutter_model/xgb_bi_1026.pkl')
 
 
     # MFCC 특성 추출 함수

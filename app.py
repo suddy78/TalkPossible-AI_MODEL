@@ -45,12 +45,13 @@ def stutter_model_endpoint():
 
 @app.route('/chu_model', methods=['POST'])
 def chu_model_endpoint():
-    data = request.get_json()
+    #data = request.get_json()
 
-    if 'audio_name' not in data:
-        return
+    #if 'audio_name' not in data:
+        #return
 
-    audio_name = data['audio_name']
+    #audio_name = data['audio_name']
+    audio_name = '2024-10-13T17_11_14_557Z.wav'
     # chu_model 함수 호출
     result = chu_model(audio_name)
 
