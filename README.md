@@ -1,8 +1,9 @@
+<div align="center">
 <h2> 음성 분석과 동작 인식 기술을 결합한<br>생성형 AI 기반 대화 시뮬레이션 서비스</h2>
-  <p align="center">
   <img alt="로고1" width="200" src="https://github.com/user-attachments/assets/5c124e19-48c1-4dc2-bb01-1d624fbcd53e"/>
     <br>
   <img alt="로고2" width="250" src="https://github.com/user-attachments/assets/44b32a36-f7db-48a3-b15d-1103d0a50a64"/>
+</div>
 <br>
 
 ## 💡 프로젝트 개요
